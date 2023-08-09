@@ -1,0 +1,19 @@
+{
+    "singleQuote": true,
+    "semi": true,
+    "arrowParens": "avoid",
+    "bracketSpacing": true,
+    "jsxBracketSameLine": false,
+    "printWidth": 120,
+    "trailingComma": "es5",
+    "jsxSingleQuote": false,
+    "endOfLine": "auto",
+    "importOrder": [
+        "^react",
+        "^../",
+        "^[./]"
+    ],
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "importOrderGroupNamespaceSpecifiers": true
+}
