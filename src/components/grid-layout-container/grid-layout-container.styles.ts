@@ -2,12 +2,16 @@ import { createUseStyles } from 'react-jss';
 
 export const useGridLayoutContainerStyles = createUseStyles(
   {
-    container: {
+    header: {
+      textAlign: 'center',
+    },
+    content: {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       border: '1px solid black',
       backgroundColor: 'lightgray',
+      userSelect: 'none',
     },
   },
   { name: 'GridLayoutContainer' }
