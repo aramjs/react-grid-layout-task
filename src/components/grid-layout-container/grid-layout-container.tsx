@@ -66,6 +66,8 @@ export function ReactGridLayoutContainer() {
 
   const onMenuSelect = useCallback(
     (selectedOption: (typeof menuOptions)[number]) => {
+      selectedItemsActions.reset();
+
       if (!selectedItem || !gridLayoutContainerRef.current) return;
 
       const calcZIndex = (n = 0, diff: -1 | 1) => {
@@ -131,7 +133,7 @@ export function ReactGridLayoutContainer() {
         });
       }
     },
-    [layout, selectedItem]
+    [layout, selectedItem, selectedItemsActions]
   );
 
   const onItemSelect = useCallback(
@@ -186,7 +188,7 @@ export function ReactGridLayoutContainer() {
 
   const dropSelectedItems = useCallback(
     (deltaX: number, deltaY: number, draggableId: string) => {
-      const normalize = (n: number) => n;
+      const normalize = (n: number) => (n < 0 ? 0 : n);
 
       Array.from(selectedItems).forEach(id => {
         if (id === draggableId) return;
@@ -271,7 +273,7 @@ export function ReactGridLayoutContainer() {
         )}
 
       <h1 className={styles.header}>
-        Press the <b>Shift</b> key for multiple selection
+        Press the <b>Shift</b> key for multiple selection and <b>ESC</b> for cancel
       </h1>
 
       <GridLayout
@@ -303,7 +305,7 @@ export function ReactGridLayoutContainer() {
               onClick={event => onItemSelect(event, item)}
               onContextMenu={e => onContextMenu(e, item)}
             >
-              <div className={styles.cardContent}>{item.i}</div>
+              {item.i}
             </div>
           );
         })}
