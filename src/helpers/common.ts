@@ -1,3 +1,7 @@
+export function getNonNegativeNumber(inputNumber = 0) {
+  return inputNumber >= 0 ? inputNumber : 0;
+}
+
 export function isElementPartiallyInAnotherElement(element: HTMLDivElement, container: HTMLDivElement) {
   const elementRect = element.getBoundingClientRect();
   const containerRect = container.getBoundingClientRect();

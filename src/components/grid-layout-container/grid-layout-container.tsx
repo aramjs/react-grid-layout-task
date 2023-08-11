@@ -13,7 +13,8 @@ import { useGridLayoutData, useWindowSize } from '../../hooks';
 import { Select } from '../../ui';
 
 import { useLayoutItemMenuStyles, useGridLayoutContainerStyles } from './grid-layout-container.styles';
-import { findNearestNumber, isElementPartiallyInAnotherElement } from '../../helpers';
+import { findNearestNumber, getNonNegativeNumber, isElementPartiallyInAnotherElement } from '../../helpers';
+import { GridLayoutRow } from './grid-layout-row';
 
 const menuOptions = [
   { id: 'front', title: 'Send to front' },
@@ -26,7 +27,6 @@ export function ReactGridLayoutContainer() {
   const gridLayoutContainerRef = useRef<HTMLDivElement | null>(null);
   const elementsInitialPositionRef = useRef<{ x: number; y: number }[]>([]);
   const onDragHandlerCountRef = useRef(0);
-  const preventOnClickRef = useRef(false);
 
   const [selectedItems, selectedItemsActions] = useSet<string>(new Set());
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -58,16 +58,28 @@ export function ReactGridLayoutContainer() {
 
   useKeyPressEvent('Escape', onEscapeKeyDown);
 
-  const onContextMenu = useCallback((event: React.MouseEvent, item: GridLayout.Layout) => {
-    event.preventDefault();
-    setSelectedItem(item);
-    setMousePosition({ x: event.clientX, y: event.clientY });
-  }, []);
+  const onContextMenu = useCallback(
+    (event: React.MouseEvent, item: GridLayout.Layout) => {
+      event.preventDefault();
+      selectedItemsActions.reset();
+      setSelectedItem(item);
+      setMousePosition({ x: event.clientX, y: event.clientY });
+    },
+    [selectedItemsActions]
+  );
+
+  const findElementById = useCallback(
+    (id: string) => {
+      const elements = (gridLayoutContainerRef.current?.childNodes || []) as unknown as HTMLDivElement[];
+      const index = layout.findIndex(item => item.i === id);
+      const element = elements[index];
+      return { element, index };
+    },
+    [layout]
+  );
 
   const onMenuSelect = useCallback(
     (selectedOption: (typeof menuOptions)[number]) => {
-      selectedItemsActions.reset();
-
       if (!selectedItem || !gridLayoutContainerRef.current) return;
 
       const calcZIndex = (n = 0, diff: -1 | 1) => {
@@ -133,17 +145,11 @@ export function ReactGridLayoutContainer() {
         });
       }
     },
-    [layout, selectedItem, selectedItemsActions]
+    [layout, selectedItem]
   );
 
   const onItemSelect = useCallback(
     (event: React.MouseEvent, item: GridLayout.Layout) => {
-      // prevent element selection because this function always fires after dropping
-      if (preventOnClickRef.current) {
-        preventOnClickRef.current = false;
-        return;
-      }
-
       const elements = (gridLayoutContainerRef.current?.childNodes || []) as unknown as HTMLDivElement[];
       elementsInitialPositionRef.current = map(elements, el => el.getBoundingClientRect());
 
@@ -154,17 +160,7 @@ export function ReactGridLayoutContainer() {
     [selectedItemsActions]
   );
 
-  const findElementById = useCallback(
-    (id: string) => {
-      const elements = (gridLayoutContainerRef.current?.childNodes || []) as unknown as HTMLDivElement[];
-      const index = layout.findIndex(item => item.i === id);
-      const element = elements[index];
-      return { element, index };
-    },
-    [layout]
-  );
-
-  const moveSelectedItems = useCallback(
+  const dragSelectedItems = useCallback(
     (layout: GridLayout.Layout[], draggableId: string) => {
       if (selectedItems.size < 2) return;
 
@@ -187,25 +183,20 @@ export function ReactGridLayoutContainer() {
   );
 
   const dropSelectedItems = useCallback(
-    (deltaX: number, deltaY: number, draggableId: string) => {
-      const normalize = (n: number) => (n < 0 ? 0 : n);
-
-      Array.from(selectedItems).forEach(id => {
-        if (id === draggableId) return;
-        const { element } = findElementById(id);
-
-        element.style.left = '0';
-        element.style.top = '0';
-      });
-
+    (deltaX: number, deltaY: number) => {
       setLayout(prev => {
         return prev.map(item => {
           if (!selectedItems.has(item.i)) return item;
 
+          const { element } = findElementById(item.i);
+
+          element.style.left = '0';
+          element.style.top = '0';
+
           return {
             ...item,
-            x: normalize(item.x + deltaX),
-            y: normalize(item.y + deltaY),
+            x: getNonNegativeNumber(item.x + deltaX),
+            y: getNonNegativeNumber(item.y + deltaY),
           };
         });
       });
@@ -226,8 +217,7 @@ export function ReactGridLayoutContainer() {
       const isDragging = onDragHandlerCountRef.current > 1;
 
       if (isDragging) {
-        moveSelectedItems(layout, newItem.i);
-        preventOnClickRef.current = true;
+        dragSelectedItems(layout, newItem.i);
 
         if (event.shiftKey) {
           selectedItemsActions.add(newItem.i);
@@ -239,7 +229,7 @@ export function ReactGridLayoutContainer() {
         }
       }
     },
-    [moveSelectedItems, selectedItemsActions]
+    [dragSelectedItems, selectedItemsActions]
   );
 
   const onDragStop = useCallback<GridLayout.ItemCallback>(
@@ -247,9 +237,9 @@ export function ReactGridLayoutContainer() {
       const isDragging = onDragHandlerCountRef.current > 1;
 
       if (isDragging) {
-        selectedItemsActions.reset();
+        dropSelectedItems(newItem.x - oldItem.x, newItem.y - oldItem.y);
 
-        dropSelectedItems(newItem.x - oldItem.x, newItem.y - oldItem.y, newItem.i);
+        selectedItemsActions.reset();
       }
 
       onDragHandlerCountRef.current = 0;
@@ -282,7 +272,7 @@ export function ReactGridLayoutContainer() {
         useCSSTransforms
         className="layout"
         cols={12}
-        containerPadding={[15, 15]}
+        containerPadding={[10, 10]}
         innerRef={gridLayoutContainerRef}
         layout={layout}
         rowHeight={30}
@@ -295,18 +285,14 @@ export function ReactGridLayoutContainer() {
           const isSelected = selectedItem?.i === item.i || selectedItemsActions.has(item.i);
 
           return (
-            <div
+            <GridLayoutRow
               key={item.i}
-              className={styles.cardContainer}
-              style={{
-                zIndex: zIndexMap[item.i],
-                ...(isSelected && { backgroundColor: 'gray' }),
-              }}
-              onClick={event => onItemSelect(event, item)}
-              onContextMenu={e => onContextMenu(e, item)}
-            >
-              {item.i}
-            </div>
+              isSelected={isSelected}
+              item={item}
+              zIndex={zIndexMap[item.i]}
+              onOpenContextMenu={onContextMenu}
+              onSelectItem={onItemSelect}
+            />
           );
         })}
       </GridLayout>
