@@ -27,6 +27,7 @@ export function ReactGridLayoutContainer() {
   const gridLayoutContainerRef = useRef<HTMLDivElement | null>(null);
   const elementsInitialPositionRef = useRef<{ x: number; y: number }[]>([]);
   const onDragHandlerCountRef = useRef(0);
+  const preventOnClickRef = useRef(false);
 
   const [selectedItems, selectedItemsActions] = useSet<string>(new Set());
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -150,6 +151,12 @@ export function ReactGridLayoutContainer() {
 
   const onItemSelect = useCallback(
     (event: React.MouseEvent, item: GridLayout.Layout) => {
+      // prevent element selection because there is a case where the function fires after dropping
+      if (preventOnClickRef.current) {
+        preventOnClickRef.current = false;
+        return;
+      }
+
       const elements = (gridLayoutContainerRef.current?.childNodes || []) as unknown as HTMLDivElement[];
       elementsInitialPositionRef.current = map(elements, el => el.getBoundingClientRect());
 
@@ -217,6 +224,7 @@ export function ReactGridLayoutContainer() {
       const isDragging = onDragHandlerCountRef.current > 1;
 
       if (isDragging) {
+        preventOnClickRef.current = true;
         dragSelectedItems(layout, newItem.i);
 
         if (event.shiftKey) {
