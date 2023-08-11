@@ -2,10 +2,11 @@ import { useCallback, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import GridLayout from 'react-grid-layout';
 import OutsideClickHandler from 'react-outside-click-handler';
-import { useSet } from 'react-use';
+import { useKeyPressEvent, useSet } from 'react-use';
 
 import min from 'lodash/min';
 import max from 'lodash/max';
+import map from 'lodash/map';
 import values from 'lodash/values';
 
 import { useGridLayoutData, useWindowSize } from '../../hooks';
@@ -23,20 +24,21 @@ const menuOptions = [
 
 export function ReactGridLayoutContainer() {
   const gridLayoutContainerRef = useRef<HTMLDivElement | null>(null);
+  const elementsInitialPositionRef = useRef<{ x: number; y: number }[]>([]);
   const onDragHandlerCountRef = useRef(0);
   const preventOnClickRef = useRef(false);
 
-  const [, selectedItemsActions] = useSet<string>(new Set());
+  const [selectedItems, selectedItemsActions] = useSet<string>(new Set());
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [layout, setLayout] = useState<GridLayout.Layout[]>([]);
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
 
   const [selectedItem, setSelectedItem] = useState<GridLayout.Layout | null>(null);
 
-  const windowSize = useWindowSize();
-
   const styles = useGridLayoutContainerStyles();
   const menuStyles = useLayoutItemMenuStyles(mousePosition);
+
+  const windowSize = useWindowSize();
 
   // simulate receiving data from the server
   const { loading, error } = useGridLayoutData({
@@ -45,6 +47,16 @@ export function ReactGridLayoutContainer() {
       setZIndexMap(response.reduce((acc, next, index) => ({ ...acc, [next.i]: 300 + index * 2 }), {}));
     },
   });
+
+  const onEscapeKeyDown = useCallback(() => {
+    const isDragging = onDragHandlerCountRef.current > 1;
+
+    if (!isDragging) {
+      selectedItemsActions.reset();
+    }
+  }, [selectedItemsActions]);
+
+  useKeyPressEvent('Escape', onEscapeKeyDown);
 
   const onContextMenu = useCallback((event: React.MouseEvent, item: GridLayout.Layout) => {
     event.preventDefault();
@@ -130,6 +142,9 @@ export function ReactGridLayoutContainer() {
         return;
       }
 
+      const elements = (gridLayoutContainerRef.current?.childNodes || []) as unknown as HTMLDivElement[];
+      elementsInitialPositionRef.current = map(elements, el => el.getBoundingClientRect());
+
       if (event.shiftKey) {
         selectedItemsActions.toggle(item.i);
       }
@@ -137,19 +152,79 @@ export function ReactGridLayoutContainer() {
     [selectedItemsActions]
   );
 
+  const findElementById = useCallback(
+    (id: string) => {
+      const elements = (gridLayoutContainerRef.current?.childNodes || []) as unknown as HTMLDivElement[];
+      const index = layout.findIndex(item => item.i === id);
+      const element = elements[index];
+      return { element, index };
+    },
+    [layout]
+  );
+
+  const moveSelectedItems = useCallback(
+    (layout: GridLayout.Layout[], draggableId: string) => {
+      if (selectedItems.size < 2) return;
+
+      const { element, index } = findElementById(draggableId);
+      const draggableElRect = element.getBoundingClientRect();
+      const draggableElInitialRect = elementsInitialPositionRef.current[index];
+
+      const deltaX = draggableElRect.x - draggableElInitialRect.x;
+      const deltaY = draggableElRect.y - draggableElInitialRect.y;
+
+      Array.from(selectedItems).forEach(id => {
+        if (id === draggableId) return;
+        const { element } = findElementById(id);
+
+        element.style.left = `${deltaX}px`;
+        element.style.top = `${deltaY}px`;
+      });
+    },
+    [findElementById, selectedItems]
+  );
+
+  const dropSelectedItems = useCallback(
+    (deltaX: number, deltaY: number, draggableId: string) => {
+      const normalize = (n: number) => n;
+
+      Array.from(selectedItems).forEach(id => {
+        if (id === draggableId) return;
+        const { element } = findElementById(id);
+
+        element.style.left = '0';
+        element.style.top = '0';
+      });
+
+      setLayout(prev => {
+        return prev.map(item => {
+          if (!selectedItems.has(item.i)) return item;
+
+          return {
+            ...item,
+            x: normalize(item.x + deltaX),
+            y: normalize(item.y + deltaY),
+          };
+        });
+      });
+    },
+    [findElementById, selectedItems]
+  );
+
   // PROBLEM: the onDrag handler sometimes fires once when the element is clicked.
   // there are two reasons for that.
   // the bug comes from the package
   // or a small cursor movement that will not be visible to the eye.
+  // there is a solution to use newItem.moved but that doesn't always work fine.
   // SOLUTION: if the onDrag handler has been called more than 1 time,
   // it means that drag is actually taking place
   const onDrag = useCallback<GridLayout.ItemCallback>(
     (layout, oldItem, newItem, placeholder, event) => {
       onDragHandlerCountRef.current += 1;
-
       const isDragging = onDragHandlerCountRef.current > 1;
 
       if (isDragging) {
+        moveSelectedItems(layout, newItem.i);
         preventOnClickRef.current = true;
 
         if (event.shiftKey) {
@@ -162,18 +237,23 @@ export function ReactGridLayoutContainer() {
         }
       }
     },
-    [selectedItemsActions]
+    [moveSelectedItems, selectedItemsActions]
   );
 
-  const onDragStop = useCallback<GridLayout.ItemCallback>(() => {
-    const isDragging = onDragHandlerCountRef.current > 1;
+  const onDragStop = useCallback<GridLayout.ItemCallback>(
+    (layout, oldItem, newItem) => {
+      const isDragging = onDragHandlerCountRef.current > 1;
 
-    if (isDragging) {
-      selectedItemsActions.reset();
-    }
+      if (isDragging) {
+        selectedItemsActions.reset();
 
-    onDragHandlerCountRef.current = 0;
-  }, [selectedItemsActions]);
+        dropSelectedItems(newItem.x - oldItem.x, newItem.y - oldItem.y, newItem.i);
+      }
+
+      onDragHandlerCountRef.current = 0;
+    },
+    [dropSelectedItems, selectedItemsActions]
+  );
 
   if (error) return <h1>Error</h1>;
   if (loading || !layout) return <h1>Loading...</h1>;
@@ -207,7 +287,6 @@ export function ReactGridLayoutContainer() {
         width={windowSize.width}
         onDrag={onDrag}
         onDragStop={onDragStop}
-        onLayoutChange={setLayout}
         onResize={setLayout}
       >
         {layout.map(item => {
@@ -216,7 +295,7 @@ export function ReactGridLayoutContainer() {
           return (
             <div
               key={item.i}
-              className={styles.content}
+              className={styles.cardContainer}
               style={{
                 zIndex: zIndexMap[item.i],
                 ...(isSelected && { backgroundColor: 'gray' }),
@@ -224,7 +303,7 @@ export function ReactGridLayoutContainer() {
               onClick={event => onItemSelect(event, item)}
               onContextMenu={e => onContextMenu(e, item)}
             >
-              {item.i}
+              <div className={styles.cardContent}>{item.i}</div>
             </div>
           );
         })}

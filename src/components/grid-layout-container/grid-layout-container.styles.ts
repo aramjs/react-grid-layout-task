@@ -5,13 +5,20 @@ export const useGridLayoutContainerStyles = createUseStyles(
     header: {
       textAlign: 'center',
     },
-    content: {
+    cardContainer: {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       border: '1px solid black',
       backgroundColor: 'lightgray',
       userSelect: 'none',
+    },
+    cardContent: {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   },
   { name: 'GridLayoutContainer' }
