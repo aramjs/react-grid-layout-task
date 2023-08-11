@@ -186,9 +186,9 @@ export function ReactGridLayoutContainer() {
         if (id === draggableId) return;
         const { element } = findElementById(id);
 
+        element.style.willChange = 'translate';
         element.style.zIndex = `${zIndexMap[id]}`;
-        element.style.left = `${deltaX}px`;
-        element.style.top = `${deltaY}px`;
+        element.style.translate = `${deltaX}px ${deltaY}px`;
       });
     },
     [findElementById, selectedItems, zIndexMap]
@@ -201,9 +201,8 @@ export function ReactGridLayoutContainer() {
           if (!selectedItems.has(item.i)) return item;
 
           const { element } = findElementById(item.i);
-
-          element.style.left = '0';
-          element.style.top = '0';
+          element.style.removeProperty('translate');
+          element.style.removeProperty('willChange');
 
           return {
             ...item,
