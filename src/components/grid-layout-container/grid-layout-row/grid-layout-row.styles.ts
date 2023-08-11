@@ -1,6 +1,6 @@
 import { createUseStyles } from 'react-jss';
 
-export const useGridLayoutRowStyles = createUseStyles<'container', { zIndex: number; isSelected: boolean }>(
+export const useGridLayoutRowStyles = createUseStyles<'container', { isSelected: boolean }>(
   {
     container: {
       display: 'flex',
@@ -9,7 +9,6 @@ export const useGridLayoutRowStyles = createUseStyles<'container', { zIndex: num
       border: '1px solid black',
       userSelect: 'none',
       transition: 'none',
-      zIndex: props => props.zIndex,
       backgroundColor: props => (props.isSelected ? 'gray' : 'lightgray'),
     },
   },

@@ -32,7 +32,7 @@ export const GridLayoutRowForwarded = forwardRef(
     }: GridLayoutRowProps,
     ref: ForwardedRef<HTMLDivElement>
   ) => {
-    const styles = useGridLayoutRowStyles({ isSelected, zIndex });
+    const styles = useGridLayoutRowStyles({ isSelected });
 
     const onClick = useCallback(
       (event: React.MouseEvent) => {
@@ -51,7 +51,7 @@ export const GridLayoutRowForwarded = forwardRef(
         key={item.i}
         ref={ref}
         className={classNames(className, styles.container)}
-        style={style}
+        style={{ ...style, zIndex }}
         onClick={onClick}
         onContextMenu={onContextMenu}
         {...props}

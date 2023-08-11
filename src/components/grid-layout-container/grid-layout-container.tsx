@@ -169,9 +169,13 @@ export function ReactGridLayoutContainer() {
 
   const dragSelectedItems = useCallback(
     (layout: GridLayout.Layout[], draggableId: string) => {
-      if (selectedItems.size < 2) return;
-
       const { element, index } = findElementById(draggableId);
+      element.style.zIndex = `${zIndexMap[draggableId]}`;
+
+      if (selectedItems.size < 2) {
+        return;
+      }
+
       const draggableElRect = element.getBoundingClientRect();
       const draggableElInitialRect = elementsInitialPositionRef.current[index];
 
@@ -182,11 +186,12 @@ export function ReactGridLayoutContainer() {
         if (id === draggableId) return;
         const { element } = findElementById(id);
 
+        element.style.zIndex = `${zIndexMap[id]}`;
         element.style.left = `${deltaX}px`;
         element.style.top = `${deltaY}px`;
       });
     },
-    [findElementById, selectedItems]
+    [findElementById, selectedItems, zIndexMap]
   );
 
   const dropSelectedItems = useCallback(
@@ -223,7 +228,7 @@ export function ReactGridLayoutContainer() {
       onDragHandlerCountRef.current += 1;
       const isDragging = onDragHandlerCountRef.current > 1;
 
-      if (isDragging) {
+      if (isDragging && newItem.moved) {
         preventOnClickRef.current = true;
         dragSelectedItems(layout, newItem.i);
 
@@ -244,7 +249,7 @@ export function ReactGridLayoutContainer() {
     (layout, oldItem, newItem) => {
       const isDragging = onDragHandlerCountRef.current > 1;
 
-      if (isDragging) {
+      if (isDragging && newItem.moved) {
         dropSelectedItems(newItem.x - oldItem.x, newItem.y - oldItem.y);
 
         selectedItemsActions.reset();
